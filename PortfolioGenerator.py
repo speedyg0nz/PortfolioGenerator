@@ -13,6 +13,7 @@ import cvxpy as cvx
 import numpy as np
 import datetime as dt
 import calendar
+import requests
 
 def readSymbolsCSV(filepath):
     symbols = []    
@@ -75,17 +76,47 @@ def meetsDateRequirements(date,frequency):
         print("Invalid frequency parameter passes to meetsDateRequirements")
         exit(0); #exit program due to invalid input (neither daily, weekly, monthly or yearly)
 
+def retrieveQuoteFromGoogle(symbol,start_date,end_date):
+    start = dt.date(int(start_date[0:4]),int(start_date[5:7]),int(start_date[8:10]))
+    end = dt.date(int(end_date[0:4]),int(end_date[5:7]),int(end_date[8:10]))
+    url_string = "http://www.google.com/finance/historical?q={0}".format(symbol)
+    url_string += "&startdate={0}&enddate={1}&output=csv".format(start.strftime('%b %d, %Y'),end.strftime('%b %d, %Y'))    
+    response = requests.get(url_string)
+    quoteDict = {}  
+    if response.status_code == 200:        
+        open('temp.csv', 'wb').write(response.content)    
+        with open('temp.csv', 'r', newline='\n', encoding="utf-8") as f:
+            reader = csv.reader(f)
+            reader.next()            
+            for row in reader:            
+                date = dt.datetime.strptime(row[0], '%d-%b-%y')
+                dateStr = date.strftime('%Y-%m-%d')
+                quoteDict[dateStr] = float(row[4])  
+        f.close()  
+    else:
+        raise Exception('Unable to find quote on Google Finance')          
+    print(quoteDict)
+    return quoteDict #return close price from last trading day of week since it might not be friday     
+
+def retrieveQuoteFromYahoo(symbol,start,end):        
+    share = Share(symbol)  
+    quoteList = share.get_historical(start,end)
+    quoteDict = {}
+    for quote in quoteList:
+        quoteDict[quote['Date']] = float(quote['Adj_Close'])        
+    return quoteDict
+
 def retrieveHistoricalQuotes(symbol,start,end):    
     print("Retrieving historical prices for {0}...".format(symbol))    
     
     if checkFileExists(symbol,start,end):
         return readQuotesFromCSV(symbol,start,end)
-    else:        
-        share = Share(symbol)  
-        quoteList = share.get_historical(start,end)
+    else:
         quoteDict = {}
-        for quote in quoteList:
-            quoteDict[quote['Date']] = float(quote['Adj_Close'])        
+        try:
+            quoteDict = retrieveQuoteFromGoogle(symbol,start,end)
+        except:
+            quoteDict = retrieveQuoteFromYahoo(symbol,start,end)
         writeQuotesToCSV(symbol,start,end,quoteDict)
         return quoteDict
 
@@ -102,6 +133,8 @@ def readQuotesFromCSV(symbol,start,end):
 
 def writeQuotesToCSV(symbol,start,end,quotes):
     directory = "quotes"
+    if not os.path.exists(directory):
+        os.makedirs(directory)
     filename = "{0}_{1}_{2}.csv".format(symbol,start,end)
     with open(os.path.join(directory,filename), 'w', newline="\n", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
@@ -144,11 +177,15 @@ def checkFileExists(symbol,start,end):
     else:
         return True    
 
-def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analysisEndDate,analysisPeriod,minExpRetForOptimization, maxExpRetForOptimization,numberOfSteps,minWeightPerStock,maxWeightPerStock,riskFreeRate,outputFilename):
+def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analysisEndDate,analysisPeriod,minExpRetForOptimization, maxExpRetForOptimization,numberOfSteps,minWeightPerStock,maxWeightPerStock,riskFreeRate,useExcessReturns,benchmarkSymbol,outputFilename):
     quotes = retrieveHistoricalQuotes("^GSPC",startDate,endDate)
     allTradingDays = sorted(quotes.keys())
     dates = findLastTradingDayInPeriods(analysisStartDate,analysisEndDate,allTradingDays,analysisPeriod)
     
+    benchmarkQuotes = {}    
+    if useExcessReturns:
+        benchmarkQuotes = retrieveHistoricalQuotes(benchmarkSymbol,startDate,endDate)
+        
     #start by getting the list of symbols to be considered for shortlisting
     symbols = sorted(readSymbolsCSV(symbolsFilename))
     
@@ -162,7 +199,13 @@ def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analys
             try:
                 prev = quotes[previousTime]
                 curr = quotes[currentTime]
-                symbolReturns.append((curr-prev)/prev) #multiply by 100 if you work using percent
+                stockReturn = (curr-prev)/prev
+                if useExcessReturns:
+                    benchmarkPrev = benchmarkQuotes[previousTime]
+                    benchmarkCurr = benchmarkQuotes[currentTime]
+                    benchmarkReturn = (benchmarkPrev-benchmarkCurr)/benchmarkPrev
+                    stockReturn = stockReturn - benchmarkReturn
+                symbolReturns.append(stockReturn) #multiply by 100 if you work using percent
             except KeyError:       
                 raise ValueError("Missing quotes for {0} between {1} and {2}".format(symbol,previousTime,currentTime))
             previousTime = currentTime

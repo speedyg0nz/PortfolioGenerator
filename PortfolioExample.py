@@ -10,16 +10,19 @@ import PortfolioGenerator as pg
 symbolsFilename     = 'symbols-shortlist.csv' #contains all the symbols to be considered
 outputFilename      = 'optimalPortfolio.csv' #filepath for the optimization outputs, leave empty to not write to file
 startDate           = '2006-01-03' #start date to retrieve historical prices
-endDate             = '2016-02-01' #end date to retrieve historical prices
+endDate             = '2016-03-06' #end date to retrieve historical prices
 analysisStartDate   = '2013-01-03' #usually same as price dates but this allows for additional flexibility in analysis, esp if certain stocks started trading later than others (e.g. FB, PYPL)
-analysisEndDate     = '2016-02-01' #usually same as price dates but this allows for additional flexibility in analysis, esp if certain stocks started trading later than others (e.g. FB, PYPL)
+analysisEndDate     = '2016-03-06' #usually same as price dates but this allows for additional flexibility in analysis, esp if certain stocks started trading later than others (e.g. FB, PYPL)
 minWeightPerStock   = 0.0 #from 0 to 1
 maxWeightPerStock   = 0.05 #from 0 to 1
 minExpRetForOpt     = 0  #per frequency period, from 0 to 1
 maxExpRetForOpt     = 0.10  #per frequency period, from 0 to 1
 numberOfSteps       = 101 #any number, the larger the higher the resolution of the frontier
-analysisPeriod      = "monthly" #daily, weekly, monthly or yearly
+analysisPeriod      = "weekly" #daily, weekly, monthly or yearly
 riskFreeRate        = 0.0 #per frequency period, from 0 to 1, 1 meaning 100%
+useExcessReturns    = False #use excess returns over benchmark instead of pure returns
+benchmarkSymbol     = '^GSPC' #benchmark stock/index to calculate excess returns against
+
 
 try:
     combinedResults, maxSharpePortfolio, minVariancePortfolio, symbols = pg.generatePortfolio(symbolsFilename,
@@ -34,6 +37,8 @@ try:
                         minWeightPerStock,
                         maxWeightPerStock,
                         riskFreeRate,
+                        useExcessReturns,
+                        benchmarkSymbol,
                         outputFilename)
     
     #following section shows how to retrieve the optimization results
