@@ -203,7 +203,7 @@ def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analys
                 if useExcessReturns:
                     benchmarkPrev = benchmarkQuotes[previousTime]
                     benchmarkCurr = benchmarkQuotes[currentTime]
-                    benchmarkReturn = (benchmarkPrev-benchmarkCurr)/benchmarkPrev
+                    benchmarkReturn = (benchmarkCurr-benchmarkPrev)/benchmarkPrev
                     stockReturn = stockReturn - benchmarkReturn
                 symbolReturns.append(stockReturn) #multiply by 100 if you work using percent
             except KeyError:       
