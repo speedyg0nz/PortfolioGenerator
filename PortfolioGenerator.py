@@ -148,7 +148,9 @@ def writeReturnsToCSV(filename,returns,cols):
     with open(filename, 'w', newline="\n", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         symbols = sorted(returns.keys())
-        writer.writerow(symbols)    
+        cells = ['']
+        cells.extend(symbols)
+        writer.writerow(cells)    
         for i in range(cols):        
             cells = [i+1]
             for symbol in symbols:      
@@ -181,6 +183,8 @@ def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analys
     quotes = retrieveHistoricalQuotes("^GSPC",startDate,endDate)
     allTradingDays = sorted(quotes.keys())
     dates = findLastTradingDayInPeriods(analysisStartDate,analysisEndDate,allTradingDays,analysisPeriod)
+    #print(dates)    
+    #print(len(dates))
     
     benchmarkQuotes = {}    
     if useExcessReturns:
@@ -191,15 +195,18 @@ def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analys
     
     #retrieve historical prices and calculate returns
     returns = {}
+    simpleReturns = {}
     for symbol in symbols:
         quotes = retrieveHistoricalQuotes(symbol,startDate,endDate)
-        symbolReturns = []        
+        symbolReturns = []
+        symbolSimpleReturns = []        
         previousTime = dates[0]
         for currentTime in dates[1:]:
             try:
                 prev = quotes[previousTime]
                 curr = quotes[currentTime]
                 stockReturn = (curr-prev)/prev
+                symbolSimpleReturns.append(stockReturn)
                 if useExcessReturns:
                     benchmarkPrev = benchmarkQuotes[previousTime]
                     benchmarkCurr = benchmarkQuotes[currentTime]
@@ -210,6 +217,7 @@ def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analys
                 raise ValueError("Missing quotes for {0} between {1} and {2}".format(symbol,previousTime,currentTime))
             previousTime = currentTime
         returns[symbol] = symbolReturns
+        simpleReturns[symbol] = symbolSimpleReturns
     
     #uncomment the following line if you wish to save the returns data to a csv file
     #writeReturnsToCSV("generatedReturns.csv",returns,len(dates)-1)
@@ -222,12 +230,13 @@ def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analys
         expectedReturns.append(np.average(returns[symbol]))
         
     expectedReturns = np.array(expectedReturns).T #transposed so we can multiply with weights later
-    covMatrix = np.cov(returns2DArray)
-    
+    covMatrix = np.cov(returns2DArray)    
+    #print(covMatrix)    
+        
     # Construct the efficient frontier.
     combinedResults = []
     
-    print("Peforming portfolio optimization...")
+    print("Performing portfolio optimization...")
     
     maxSharpe = 0.0
     minVariance = float("inf")
@@ -236,16 +245,17 @@ def generatePortfolio(symbolsFilename,startDate,endDate,analysisStartDate,analys
     for expRet in np.linspace(minExpRetForOptimization, maxExpRetForOptimization, num=numberOfSteps, endpoint=True):    
         #define the variable for the solver to generate    
         w = cvx.Variable(len(symbols))     
-        #set objective as minimum variance    
-        objective = cvx.Minimize(cvx.sum_entries(covMatrix*w))    
+        #set objective as minimum variance            
+        objective = cvx.Minimize(cvx.quad_form(w,covMatrix))    
         #weights must be under 1, sum of weights is 1, 
-        constraints = [minWeightPerStock <= w, w <= maxWeightPerStock, cvx.sum_entries(w) == 1, cvx.sum_entries(expectedReturns*w) == expRet]    
+        constraints = [minWeightPerStock <= w, w <= maxWeightPerStock, cvx.sum_entries(w) == 1, cvx.sum_entries(expectedReturns*w) == expRet]
         prob = cvx.Problem(objective, constraints)    
         # The optimal objective is returned by prob.solve().
-        prob.solve()        
+        prob.solve()
+        
         #checks if result was optimal and output it to 
         if prob.status == 'optimal':           
-            variance = cvx.sum_entries(covMatrix*w).value
+            variance = cvx.quad_form(w,covMatrix).value        
             results = {}
             results['variance'] = variance
             results['stdev'] = np.sqrt(variance)
