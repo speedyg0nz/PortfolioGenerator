@@ -21,7 +21,6 @@ def readSymbolsCSV(filepath):
         reader = csv.reader(f)
         for row in reader:            
             symbols.append(row[0])
-    f.close()
     return symbols
     
 def readDatesCSV(filepath):
@@ -30,7 +29,6 @@ def readDatesCSV(filepath):
         reader = csv.reader(f)
         for row in reader:            
             dates.append(row[0])
-    f.close()
     return dates 
 
 def findLastTradingDayInPeriods(start,end,allTradingDates,frequency):
@@ -91,8 +89,7 @@ def retrieveQuoteFromGoogle(symbol,start_date,end_date):
             for row in reader:            
                 date = dt.datetime.strptime(row[0], '%d-%b-%y')
                 dateStr = date.strftime('%Y-%m-%d')
-                quoteDict[dateStr] = float(row[4])  
-        f.close()  
+                quoteDict[dateStr] = float(row[4])    
     else:
         raise Exception('Unable to find quote on Google Finance')          
     print(quoteDict)
@@ -128,7 +125,6 @@ def readQuotesFromCSV(symbol,start,end):
         reader = csv.reader(f)
         for row in reader:            
             quotes[row[0]] = float(row[1])
-    f.close()
     return quotes
 
 def writeQuotesToCSV(symbol,start,end,quotes):
@@ -142,7 +138,6 @@ def writeQuotesToCSV(symbol,start,end,quotes):
         for date in sorted(dates):        
             cells = [date,quotes[date]]                    
             writer.writerow(cells)        
-    csvfile.close()
  
 def writeReturnsToCSV(filename,returns,cols):    
     with open(filename, 'w', newline="\n", encoding="utf-8") as csvfile:
@@ -157,7 +152,6 @@ def writeReturnsToCSV(filename,returns,cols):
                 #print(i)
                 cells.append(returns[symbol][i])
             writer.writerow(cells)        
-    csvfile.close()
 
 def writeOptimalPortfolioToCSV(filename,combinedResults,symbols):
     with open(filename, 'w', newline="\n", encoding="utf-8") as csvfile:
@@ -169,7 +163,6 @@ def writeOptimalPortfolioToCSV(filename,combinedResults,symbols):
             cells = [results['variance'],results['stdev'],results['expRet'],results['sharpe']]
             cells.extend(results['weights'])
             writer.writerow(cells)        
-    csvfile.close()
 
 def checkFileExists(symbol,start,end):
     directory = "quotes"
